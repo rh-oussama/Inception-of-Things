@@ -1,0 +1,51 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "debian/bookworm64"
+
+  # Copy the host's public SSH key so the VM setup script can authorize it
+  public_key = [ "~/.ssh/id_rsa.pub", "~/.ssh/id_ed25519.pub", "~/.ssh/id_ecdsa.pub" ]
+                 .map { |path| File.expand_path(path) }
+                 .find { |path| File.exist?(path) }
+
+  if public_key
+    File.write(File.join(File.dirname(__FILE__), "host_key.pub"), File.read(public_key).strip)
+  end
+
+
+  # ==========================================
+  # 1. CONTROLLER NODE
+  # ==========================================
+  config.vm.define "testS" do |server|
+    # Machine Specifications
+    server.vm.hostname = "testS" 
+    server.vm.network "private_network", ip: "192.168.56.110"
+
+    # Hypervisor hardware constraints
+    server.vm.provider "virtualbox" do |vb|
+      vb.name = "testS" 
+      vb.cpus = 1
+      vb.memory = "1024" 
+    end
+
+    # External automated configuration logic 
+    server.vm.provision "shell", path: "./scripts/server_setup.sh"
+  end
+
+  # ==========================================
+  # 2. AGENT NODE
+  # ==========================================
+  config.vm.define "testSW" do |worker|
+    # Machine Specifications
+    worker.vm.hostname = "testSW"
+    worker.vm.network "private_network", ip: "192.168.56.111"
+
+    # Hypervisor hardware constraints
+    worker.vm.provider "virtualbox" do |vb|
+      vb.name = "testSW"
+      vb.cpus = 1
+      vb.memory = "512" 
+    end
+
+    # External provisioning script for the agent node
+    worker.vm.provision "shell", path: "./scripts/worker_setup.sh"
+  end
+end

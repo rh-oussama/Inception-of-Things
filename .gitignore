@@ -1,0 +1,8 @@
+.env
+.vagrant/
+*.log
+.DS_Store
+p1/confs/
+iot-test
+host_key.pub
+node-token

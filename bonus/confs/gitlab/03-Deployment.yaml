@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitlab
+  namespace: gitlab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gitlab
+  template:
+    metadata:
+      labels:
+        app: gitlab
+    spec:
+      containers:
+        - name: gitlab
+          image: gitlab/gitlab-ce:latest
+          ports:
+            - containerPort: 80
+            - containerPort: 22
+          env:
+            - name: GITLAB_OMNIBUS_CONFIG
+              value: |
+                external_url 'http://gitlab.local'
+                gitlab_rails['gitlab_shell_ssh_port'] = 22
+                gitlab_rails['initial_root_password'] = '0x%Qx[$71wb_'
+                prometheus_monitoring['enable'] = false
+                alertmanager['enable'] = false
+                node_exporter['enable'] = false
+                redis_exporter['enable'] = false
+                postgres_exporter['enable'] = false
+                gitlab_exporter['enable'] = false
+                sidekiq['metrics_enabled'] = false
+                sidekiq['concurrency'] = 10
+          volumeMounts:
+            - name: config
+              mountPath: /etc/gitlab
+            - name: data
+              mountPath: /var/opt/gitlab
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: gitlab-config-pvc
+        - name: data
+          persistentVolumeClaim:
+            claimName: gitlab-data-pvc

@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: playground-app
+  namespace: dev
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: playground-app
+  template:
+    metadata:
+      labels:
+        app: playground-app
+    spec:
+      containers:
+        - name: playground-app
+          image: wil42/playground:v1
+          ports:
+            - containerPort: 8888
+          resources:
+            requests:
+              memory: "16Mi"
+              cpu: "10m"
+            limits:
+              memory: "256Mi"
+              cpu: "100m"
