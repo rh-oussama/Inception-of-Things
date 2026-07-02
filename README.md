@@ -1,284 +1,233 @@
 # Inception of Things (IoT)
 
-A comprehensive DevOps project focused on setting up local Kubernetes infrastructure using K3s, K3d, Vagrant, and VirtualBox, combined with GitOps continuous deployment using Argo CD and self-hosted GitLab.
+A DevOps project that builds Kubernetes infrastructure from the ground up using K3s, K3d, Vagrant, and implements GitOps workflows with Argo CD and self-hosted GitLab.
 
----
+The project is divided into four progressive parts, starting with virtual machine provisioning and ending with a fully local GitOps pipeline.
 
-## 🏗️ Repository Architecture
-
-This repository is organized into distinct phases of complexity, building from virtualized infrastructure to advanced in-cluster GitOps workflows:
+## Repository Structure
 
 ```
 Inception-of-things/
-├── p1/                         # Part 1: K3s Multi-Node Cluster
-│   ├── Vagrantfile             # VM definition for Server and Agent
+├── p1/                         # K3s multi-node cluster with Vagrant
+│   ├── Vagrantfile
 │   └── scripts/
-│       ├── server_setup.sh     # Controller Node bootstrap script
-│       └── worker_setup.sh     # Worker Node bootstrap script
+│       ├── server_setup.sh
+│       └── worker_setup.sh
 │
-├── p2/                         # Part 2: K3s Ingress and Services
-│   ├── Vagrantfile             # Single Controller VM configuration
+├── p2/                         # K3s + Ingress + three applications
+│   ├── Vagrantfile
 │   ├── confs/
-│   │   ├── apps.yaml           # Deployment + Service manifests for App 1, 2, 3
-│   │   └── ingress.yaml        # Traefik Ingress routing configuration
+│   │   ├── apps.yaml
+│   │   └── ingress.yaml
 │   └── scripts/
-│       └── setup.sh            # Controller VM bootstrap + app deployment script
+│       └── setup.sh
 │
-├── p3/                         # Part 3: K3d Cluster with Argo CD
+├── p3/                         # K3d + Argo CD (GitOps from GitHub)
 │   ├── confs/
 │   │   └── argocd/
-│   │       ├── Ingress.yaml    # Argo CD Ingress configuration
-│   │       └── application.yaml# Argo CD Application configuration (GitOps)
+│   │       ├── Ingress.yaml
+│   │       └── application.yaml
 │   └── scripts/
-│       ├── deps.sh             # Dependency installer (Docker, K3d, kubectl)
-│       ├── argocd.sh           # Argo CD namespace setup + deployment + commands
-│       └── setup.sh            # Orchestrator script for Part 3
+│       ├── deps.sh
+│       ├── argocd.sh
+│       └── setup.sh
 │
-└── bonus/                      # Bonus: Self-hosted GitOps Pipeline
+└── bonus/                      # Self-hosted GitOps with GitLab
     ├── confs/
-    │   ├── app/                # Target application manifests (v1)
+    │   ├── app/
     │   │   ├── deployment.yaml
     │   │   ├── service.yaml
     │   │   └── ingress.yaml
     │   ├── argocd/
     │   │   ├── Ingress.yaml
-    │   │   └── application.yaml# Argo CD mapping to GitLab in-cluster repository
+    │   │   └── application.yaml
     │   └── gitlab/
-    │       ├── 01-volumes.yaml  # GitLab PV & PVC storage manifests
-    │       ├── 02-Service.yaml  # GitLab ClusterIP service
-    │       ├── 03-Deployment.yaml# GitLab CE Deployment & environment setup
-    │       └── 04-ingress.yaml  # Ingress routing for gitlab.local
+    │       ├── 01-volumes.yaml
+    │       ├── 02-Service.yaml
+    │       ├── 03-Deployment.yaml
+    │       └── 04-ingress.yaml
     └── scripts/
-        ├── deps.sh             # Cluster setup scripts
-        ├── argocd.sh           # Argo CD deployment script
-        ├── gitlab.sh           # GitLab deployment + waiting loop
-        └── setup.sh            # Complete orchestrator script
+        ├── deps.sh
+        ├── argocd.sh
+        ├── gitlab.sh
+        └── setup.sh
 ```
 
----
+## Technology Stack
 
-## 🛠️ Technology Stack & Core Concepts
+- **K3s** — Lightweight Kubernetes distribution
+- **K3d** — K3s in Docker containers for fast local clusters
+- **Vagrant + VirtualBox** — Infrastructure as code for virtual machines
+- **Argo CD** — Declarative GitOps continuous delivery
+- **GitLab CE** — Self-hosted Git repository and CI/CD platform
 
-* **[K3s](https://k3s.io/):** Lightweight Kubernetes distribution designed for resource-constrained environments (ideal for local virtual machines).
-* **[K3d](https://k3d.io/):** A helper utility to run K3s inside Docker containers, facilitating fast local cluster testing.
-* **[Vagrant](https://www.vagrantup.com/) & [VirtualBox](https://www.virtualbox.org/):** Infrastructure-as-code to spin up, configure, and isolate guest operating systems (Debian Bookworm) automatically.
-* **[Argo CD](https://argoproj.github.io/cd/):** Declarative, GitOps continuous delivery tool for Kubernetes that automates deployment of tracked resources.
-* **[GitLab CE](https://about.gitlab.com/):** Host-your-own VCS repository server deployed directly inside Kubernetes to implement secure, local source-of-truth syncing.
+## Part 1: K3s Multi-Node Cluster
 
----
+Deploys a two-node K3s cluster using Vagrant on Debian Bookworm.
 
-## 🚀 Detailed Phase Walkthrough
-
-### 📦 Part 1: K3s Multi-Node Vagrant Cluster
-Deploys a multi-node Kubernetes cluster across two virtual machines running Debian Bookworm.
+- Controller node (`testS`): `192.168.56.110`
+- Worker node (`testSW`): `192.168.56.111`
 
 ```mermaid
 graph LR
-    subgraph Host OS
-      Vagrantfile[Vagrant Environment]
+    subgraph Host
+        V[Vagrant]
     end
-    subgraph VM 1: testS (Controller)
-      direction TB
-      K3sS[K3s Server] -- generates --> Token[node-token]
+    subgraph "testS (Controller)"
+        K3sS[K3s Server]
+        K3sS -- writes --> Token["/vagrant/node-token"]
     end
-    subgraph VM 2: testSW (Agent)
-      direction TB
-      K3sA[K3s Agent] -- joins via token --> K3sS
+    subgraph "testSW (Worker)"
+        K3sW[K3s Agent]
+        K3sW -- joins via token --> K3sS
     end
-    Vagrantfile --> testS
-    Vagrantfile --> testSW
+    V --> testS
+    V --> testSW
 ```
 
-* **Environment definition:** Configured in [p1/Vagrantfile](file:///Users/rh/Desktop/Inception-of-things/p1/Vagrantfile).
-* **Server Node (`testS`):** Controller Node running on `192.168.56.110`. Configured via [server_setup.sh](file:///Users/rh/Desktop/Inception-of-things/p1/scripts/server_setup.sh). Swapon configuration is managed, swap failsafe is bypassed, and Traefik, ServiceLB, and metrics servers are disabled to conserve resources. Writes cluster `node-token` to `/vagrant/node-token` (shared folder).
-* **Worker Node (`testSW`):** Agent Node running on `192.168.56.111`. Configured via [worker_setup.sh](file:///Users/rh/Desktop/Inception-of-things/p1/scripts/worker_setup.sh). Boots up, blocks until the node token is shared by the controller, and registers itself as a worker node joining `https://192.168.56.110:6443`.
-
-#### Installation:
+**Run:**
 ```bash
 cd p1
 vagrant up
 ```
-#### Verification:
-SSH into the controller and run:
+
+**Verify:**
 ```bash
 vagrant ssh testS
 kubectl get nodes -o wide
 ```
 
----
+## Part 2: K3s Ingress and Applications
 
-### 🌐 Part 2: K3s Ingress & Multi-App Routing
-Sets up a single controller VM (`testS`, IP `192.168.56.110`) using default Traefik routing to serve three distinct Nginx applications behind an Ingress resource.
+Deploys three Nginx applications behind a Traefik Ingress on a single K3s node. Routing is based on the `Host` header.
+
+- `app1.com` → app-one (1 replica)
+- `app2.com` → app-two (3 replicas)
+- `app3.com` / default → app-three (1 replica)
 
 ```mermaid
 graph TD
-    Client[Request Client] -->|app1.com| Traefik[Traefik Ingress]
-    Client -->|app2.com| Traefik
-    Client -->|app3.com / default| Traefik
-    
-    Traefik -->|host app1.com| App1[app-one-service:80] --> Pod1[app-one Deployment x1]
-    Traefik -->|host app2.com| App2[app-two-service:80] --> Pod2[app-two Deployment x3]
-    Traefik -->|host app3.com| App3[app-three-service:80] --> Pod3[app-three Deployment x1]
+    Client[Client Request] -->|Host: app1.com| Traefik
+    Client -->|Host: app2.com| Traefik
+    Client -->|Host: app3.com / default| Traefik
+
+    Traefik --> App1[app-one]
+    Traefik --> App2[app-two - 3 replicas]
+    Traefik --> App3[app-three]
 ```
 
-* **Environment configuration:** Set up in [p2/Vagrantfile](file:///Users/rh/Desktop/Inception-of-things/p2/Vagrantfile) and provisioned by [setup.sh](file:///Users/rh/Desktop/Inception-of-things/p2/scripts/setup.sh).
-* **Deployments & Services:** Defined in [apps.yaml](file:///Users/rh/Desktop/Inception-of-things/p2/confs/apps.yaml):
-  * `app-one` (1 replica): Nginx serving `"Hello from app1."`
-  * `app-two` (3 replicas): Nginx serving `"Hello from app2."`
-  * `app-three` (1 replica): Nginx serving `"Hello from app3."`
-* **Ingress Mapping:** Configured in [ingress.yaml](file:///Users/rh/Desktop/Inception-of-things/p2/confs/ingress.yaml):
-  * Request host `app1.com` paths to `app-one`
-  * Request host `app2.com` paths to `app-two`
-  * Request host `app3.com` paths to `app-three`
-  * Fallback (no match or wildcard) paths to `app-three`
-
-#### Installation:
+**Run:**
 ```bash
 cd p2
 vagrant up
 ```
-#### Verification:
-Add routing maps to your host `/etc/hosts` file or run `curl` inside the Vagrant VM:
+
+**Verify** (add entries to `/etc/hosts` or run inside the VM):
 ```bash
 vagrant ssh testS
+
 curl -H "Host: app1.com" http://192.168.56.110
 curl -H "Host: app2.com" http://192.168.56.110
 curl -H "Host: app3.com" http://192.168.56.110
-curl http://192.168.56.110   # Fallback (app-three)
+curl http://192.168.56.110
 ```
 
----
+## Part 3: K3d + Argo CD (GitOps)
 
-### 🔄 Part 3: K3d Cluster & GitOps with Argo CD
-Spins up a lightweight containerized cluster (`iot-cluster`) using `K3d` and configures `Argo CD` to automatically synchronize changes from a public repository.
+Creates a local K3d cluster and configures Argo CD to continuously sync manifests from a public GitHub repository.
 
 ```mermaid
 graph LR
-    GitHub[GitHub Repo: test.git]
-    
-    subgraph K3d Cluster: iot-cluster
-        ArgoCD[Argo CD Controller]
-        DevNS[dev Namespace]
-        
-        ArgoCD -- periodically polls --> GitHub
-        ArgoCD -- reconciles state --> DevNS
-    end
+    GitHub[GitHub Repository] -->|polls| ArgoCD[Argo CD]
+    ArgoCD -->|reconciles| Dev[dev Namespace]
     
     ArgoCDIn[http://argocd.local] --> ArgoCD
-    AppIn[http://app.local] --> DevNS
+    AppIn[http://app.local] --> Dev
 ```
 
-* **Setup Orchestration:** Managed by [setup.sh](file:///Users/rh/Desktop/Inception-of-things/p3/scripts/setup.sh).
-* **Dependencies:** Managed in [deps.sh](file:///Users/rh/Desktop/Inception-of-things/p3/scripts/deps.sh) which installs Docker, K3d, and kubectl, and configures the kubeconfig profile on the host.
-* **Argo CD deployment:** Configured via [argocd.sh](file:///Users/rh/Desktop/Inception-of-things/p3/scripts/argocd.sh). It deploys Argo CD in namespace `argocd`, disables SSL/TLS for simplified local interaction, patches credentials to default `admin`/`admin` (via a customized bcrypt secret key), maps `/etc/hosts` configuration for routing endpoints, and triggers the synchronization.
-* **Argo CD Custom Ingress:** [Ingress.yaml](file:///Users/rh/Desktop/Inception-of-things/p3/confs/argocd/Ingress.yaml) defines access at `http://argocd.local`.
-* **Git Repository Tracked:** Configured in [application.yaml](file:///Users/rh/Desktop/Inception-of-things/p3/confs/argocd/application.yaml) pointing to `https://github.com/rh-oussama/test.git` (manifests directory), deployed directly to the `dev` namespace.
-
-#### Installation:
+**Run:**
 ```bash
 cd p3/scripts
 sudo ./setup.sh install
 ```
-#### Verification:
-Access Argo CD dashboard via your browser: `http://argocd.local` (Username: `admin`, Password: `admin`).
-Test the application: `curl http://app.local`
 
----
+**Verify:**
+- Argo CD: http://argocd.local (admin / admin)
+- Application: `curl http://app.local`
 
-### 🎁 Bonus: The Self-Hosted GitOps Loop
-Elevates Part 3 by replacing the external Git repository with a self-hosted **GitLab** service running inside the same K3d cluster.
+## Bonus: Self-Hosted GitOps with GitLab
+
+Replaces the external GitHub repository with a self-hosted GitLab instance running inside the same K3d cluster. Argo CD now watches the internal GitLab repository.
 
 ```mermaid
 graph TD
-    Developer[Developer] -->|git push| GitLab[Local GitLab: gitlab.local]
+    Dev[Developer] -->|git push| GitLab[GitLab<br/>gitlab.local]
     
-    subgraph K3d Cluster
+    subgraph "K3d Cluster"
         GitLab
         ArgoCD[Argo CD]
-        App[Playground App]
+        App[Application]
         
-        ArgoCD -- checks internally --> GitLab
-        ArgoCD -- updates --> App
+        ArgoCD -->|watches| GitLab
+        ArgoCD -->|syncs| App
     end
 ```
 
-* **Setup Orchestration:** Orchestrated via [setup.sh](file:///Users/rh/Desktop/Inception-of-things/bonus/scripts/setup.sh).
-* **GitLab Deployment:** Managed by [gitlab.sh](file:///Users/rh/Desktop/Inception-of-things/bonus/scripts/gitlab.sh) and configures GitLab using the manifests inside [bonus/confs/gitlab](file:///Users/rh/Desktop/Inception-of-things/bonus/confs/gitlab):
-  * [01-volumes.yaml](file:///Users/rh/Desktop/Inception-of-things/bonus/confs/gitlab/01-volumes.yaml): Storage setup for GitLab.
-  * [02-Service.yaml](file:///Users/rh/Desktop/Inception-of-things/bonus/confs/gitlab/02-Service.yaml): Internal communication mapping.
-  * [03-Deployment.yaml](file:///Users/rh/Desktop/Inception-of-things/bonus/confs/gitlab/03-Deployment.yaml): Container specs and configurations.
-  * [04-ingress.yaml](file:///Users/rh/Desktop/Inception-of-things/bonus/confs/gitlab/04-ingress.yaml): Domain access for `http://gitlab.local`.
-* **Argo CD Setup:** [argocd.sh](file:///Users/rh/Desktop/Inception-of-things/bonus/scripts/argocd.sh) deploys Argo CD and configures [application.yaml](file:///Users/rh/Desktop/Inception-of-things/bonus/confs/argocd/application.yaml) pointing to the internal GitLab endpoint `http://gitlab-web.gitlab.svc.cluster.local/root/test.git` to deploy the app components from [bonus/confs/app](file:///Users/rh/Desktop/Inception-of-things/bonus/confs/app):
-  * [deployment.yaml](file:///Users/rh/Desktop/Inception-of-things/bonus/confs/app/deployment.yaml)
-  * [service.yaml](file:///Users/rh/Desktop/Inception-of-things/bonus/confs/app/service.yaml)
-  * [ingress.yaml](file:///Users/rh/Desktop/Inception-of-things/bonus/confs/app/ingress.yaml)
-
-#### Installation:
+**Run:**
 ```bash
 cd bonus/scripts
 sudo ./setup.sh install
 ```
-#### Verification:
-* GitLab URL: `http://gitlab.local` (Username: `root`, Password: `0x%Qx[$71wb_`)
-* Argo CD URL: `http://argocd.local` (Username: `admin`, Password: `admin`)
-* Playground App: `curl http://app.local`
 
----
+**Verify:**
+- GitLab: http://gitlab.local (root / `0x%Qx[$71wb_`)
+- Argo CD: http://argocd.local (admin / admin)
+- Application: `curl http://app.local`
 
-## 🔑 Infrastructure Access & Credentials
+## Access Credentials
 
-| Phase | Service / Resource | Endpoint | Username | Password / Token |
-| :--- | :--- | :--- | :--- | :--- |
-| **p1** | Controller Node | `192.168.56.110:6443` | `vagrant` | Vagrant SSH Key |
-| **p1** | Worker Node | `192.168.56.111` | `vagrant` | Vagrant SSH Key |
-| **p2** | App 1 | `http://192.168.56.110` (Host: `app1.com`) | *N/A* | *Public* |
-| **p2** | App 2 | `http://192.168.56.110` (Host: `app2.com`) | *N/A* | *Public* |
-| **p2** | App 3 / Default | `http://192.168.56.110` (Host: `app3.com`) | *N/A* | *Public* |
-| **p3** | Argo CD Dashboard | `http://argocd.local` | `admin` | `admin` |
-| **p3** | Sync App | `http://app.local` | *N/A* | *Public* |
-| **Bonus**| Argo CD Dashboard | `http://argocd.local` | `admin` | `admin` |
-| **Bonus**| Local GitLab Instance| `http://gitlab.local` | `root` | `0x%Qx[$71wb_` |
-| **Bonus**| Playground App | `http://app.local` | *N/A* | *Public* |
+| Part     | Service              | URL / IP                        | Username | Password          |
+|----------|----------------------|----------------------------------|----------|-------------------|
+| p1       | Controller (SSH)     | 192.168.56.110                   | vagrant  | Vagrant key       |
+| p1       | Worker (SSH)         | 192.168.56.111                   | vagrant  | Vagrant key       |
+| p2       | Applications         | http://192.168.56.110            | -        | Public            |
+| p3       | Argo CD              | http://argocd.local              | admin    | admin             |
+| p3       | Application          | http://app.local                 | -        | Public            |
+| Bonus    | GitLab               | http://gitlab.local              | root     | `0x%Qx[$71wb_`    |
+| Bonus    | Argo CD              | http://argocd.local              | admin    | admin             |
+| Bonus    | Application          | http://app.local                 | -        | Public            |
 
----
-
-## 🛠️ Commands Cheatsheet
+## Useful Commands
 
 ### Vagrant (p1 & p2)
 ```bash
-# Start the virtual machines defined in the Vagrantfile
-vagrant up
-
-# Check status of running machines
+vagrant up                  # Start VMs
 vagrant status
-
-# SSH into the server node
 vagrant ssh testS
-
-# Clean up / destroy virtual environments
 vagrant destroy -f
 ```
 
-### K3d & Kubernetes (p3 & bonus)
+### Kubernetes & K3d (p3 & Bonus)
 ```bash
-# Check running k3d clusters
 k3d cluster list
-
-# Delete the cluster
 k3d cluster delete iot-cluster
-
-# Check all deployed pods across all namespaces
 kubectl get pods -A
-
-# Check services in the dev namespace
 kubectl get svc -n dev
-
-# Fetch Ingress configuration status
 kubectl get ingress -A
 ```
 
+## Important Notes
+
+- Add the following domains to your `/etc/hosts` file for local resolution:
+  ```
+  127.0.0.1 argocd.local app.local gitlab.local
+  ```
+- GitLab may take several minutes to become ready after deployment. Monitor with:
+  ```bash
+  kubectl get pods -n gitlab -w
+  ```
+- All scripts in `scripts/` folders are designed to be idempotent where possible.
+
 ---
 
-## ⚠️ Important Configuration Notes
-* **Hosts Resolution:** To resolve custom domain names (`argocd.local`, `app.local`, `gitlab.local`) outside curl, make sure they are appended to your local machine's `/etc/hosts` file (or host machine resolver map).
-* **GitLab Initial Provisioning:** GitLab container startup might take several minutes to run migrations and initialize its internal server components. Use `kubectl get pods -n gitlab -w` to monitor its status before logging in.
+This project was completed as part of a System Administration curriculum focused on Kubernetes and GitOps practices.
